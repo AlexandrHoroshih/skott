@@ -64,6 +64,30 @@ export interface SkottConfig<T> {
   incremental: boolean;
   manifestPath: string;
   tsConfigPath: string;
+  /**
+   * Grouping rules, which will be used to create compacted vesrion of the graph
+   * 
+   * Group can be either a string, string pattern or a configuration object
+   */
+  groups?: {
+    [key: string]: string | {
+      /**
+       * Scope of the group
+       */
+      basePath: string;
+      /**
+       * 
+       * @param modulePath path to the module
+       * @returns group name, to which the module belongs
+       */
+      getGroup: (modulePath: string) => string;
+    } | {
+      /**
+       * If set to true, this group of modules will be hidden in the graph
+       */
+      hide: true;
+    };
+  };
 }
 
 export interface SkottStructure<T = unknown> {
