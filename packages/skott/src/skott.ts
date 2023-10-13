@@ -65,7 +65,7 @@ export interface SkottConfig<T> {
   manifestPath: string;
   tsConfigPath: string;
   /**
-   * Grouping rules, which will be used to create compacted vesrion of the graph
+   * Grouping rules, which will be used to create compacted "grouped" vesrion of the graph
    * 
    * Group can be either a string, string pattern or a configuration object
    */
@@ -92,6 +92,7 @@ export interface SkottConfig<T> {
 
 export interface SkottStructure<T = unknown> {
   graph: Record<string, SkottNode<T>>;
+  groupedGraph?: Record<string, SkottNode<T>>;
   files: string[];
 }
 
