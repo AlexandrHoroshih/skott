@@ -20,7 +20,7 @@ function raiseIllegalConfigException(configuration: string): never {
 
 function checkIllegalConfigs<T>(config: O.Option<InputConfig<T>>): void {
   if (O.isSome(config)) {
-    const { entrypoint, includeBaseDir, cwd } = config.value;
+    const { entrypoint, includeBaseDir, cwd, groups } = config.value;
 
     if (!entrypoint && includeBaseDir) {
       raiseIllegalConfigException(
@@ -33,7 +33,65 @@ function checkIllegalConfigs<T>(config: O.Option<InputConfig<T>>): void {
         "`cwd` can't be customized when providing an entrypoint"
       );
     }
+
+    if (groups) {
+      const list = Object.entries(groups);
+
+      for (const [groupName, group] of list) {
+        for (const [otherGroupName, otherGroup] of list) {
+          if (groupName === otherGroupName) {
+            continue;
+          }
+
+          const resolvedPath = resolveGroupPath(group);
+          const otherResolvedPath = resolveGroupPath(otherGroup);
+
+          if (resolvedPath && otherResolvedPath) {
+            if (
+              resolvedPath === otherResolvedPath ||
+              resolvedPath.includes(otherResolvedPath) ||
+              otherResolvedPath.includes(resolvedPath)
+            ) {
+              raiseIllegalConfigException(
+                `Overlapping groups: ${groupName}, ${otherGroupName}`
+              );
+            }
+          }
+        }
+      }
+    }
   }
+}
+
+function resolveGroupPath(
+  group: Exclude<SkottConfig<any>["groups"], undefined>[string]
+): string {
+  let resolvedPath: string = "";
+
+  if (typeof group === "string") {
+    resolvedPath = group;
+  } else if ("basePath" in group) {
+    resolvedPath = group.basePath;
+  }
+
+  /* trim stuff */
+  if (resolvedPath.startsWith(".")) {
+    resolvedPath = resolvedPath.slice(1);
+  }
+
+  if (resolvedPath.startsWith("/")) {
+    resolvedPath = resolvedPath.slice(1);
+  }
+
+  if (resolvedPath.endsWith("*")) {
+    resolvedPath = resolvedPath.slice(0, -1);
+  }
+
+  if (resolvedPath.endsWith("/")) {
+    resolvedPath = resolvedPath.slice(0, -1);
+  }
+
+  return resolvedPath;
 }
 
 export default async function skott<T>(

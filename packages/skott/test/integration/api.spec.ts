@@ -44,6 +44,94 @@ describe("When running Skott using all real dependencies", () => {
         "Illegal configuration: `cwd` can't be customized when providing an entrypoint"
       );
     });
+
+    describe("When providing a groups configuration", () => {
+      test("Should allow to provide a simple groups", async () => {
+        expect(
+          await skott({
+            groups: {
+              groupA: "src/groupA",
+              groupB: "src/groupB"
+            }
+          })
+        ).toBeDefined();
+      });
+      test("Should allow to provide a pattern based groups", async () => {
+        expect(
+          await skott({
+            groups: {
+              features: "src/features/*",
+              widgets: "src/widgets/*"
+            }
+          })
+        ).toBeDefined();
+      });
+      test("Should allow to provide a configuration based groups", async () => {
+        expect(
+          await skott({
+            groups: {
+              features: {
+                basePath: "src/features",
+                getGroup: (filePath) => filePath.split("/")[2]
+              },
+              widgets: "src/widgets/*"
+            }
+          })
+        ).toBeDefined();
+      });
+      test("Should allow to hide a specific group", async () => {
+        expect(
+          await skott({
+            groups: {
+              features: {
+                hide: true
+              },
+              widgets: "src/widgets/*"
+            }
+          })
+        ).toBeDefined();
+      });
+
+      test("Should not allow overlapping group paths", async () => {
+        await expect(
+          skott({
+            groups: {
+              widgetsA: "src/team-a/widgets/*",
+              teamA: "src/team-a/*"
+            }
+          })
+        ).rejects.toThrow(
+          "Illegal configuration: Overlapping groups: widgetsA, teamA"
+        );
+      });
+      test("Should not allow overlapping group paths with config based groups", async () => {
+        await expect(
+          skott({
+            groups: {
+              widgetsA: {
+                basePath: "src/team-a/widgets",
+                getGroup: (filePath) => filePath.split("/")[2]
+              },
+              teamA: "src/team-a/*"
+            }
+          })
+        ).rejects.toThrow(
+          "Illegal configuration: Overlapping groups: widgetsA, teamA"
+        );
+      });
+      test("Should not allow the same path twice", async () => {
+        await expect(
+          skott({
+            groups: {
+              widgetsA: "src/team-a/widgets/*",
+              teamA: "src/team-a/widgets/*"
+            }
+          })
+        ).rejects.toThrow(
+          "Illegal configuration: Overlapping groups: widgetsA, teamA"
+        );
+      });
+    });
   });
 
   describe("When traversing files", () => {
