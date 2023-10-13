@@ -6,6 +6,8 @@ import {
   IconPlayerStop,
   IconRotate2,
   IconSettingsAutomation,
+  IconToggleLeft,
+  IconToggleRight,
 } from "@tabler/icons-react";
 import React from "react";
 import { Network } from "vis-network";
@@ -18,6 +20,7 @@ export function ActionMenu({
   initNetwork: () => void;
 }) {
   const [simulation, setSimulation] = React.useState(false);
+  const [fullGraph, setGraphType] = React.useState(true);
 
   return (
     <div
@@ -64,6 +67,24 @@ export function ActionMenu({
             }
           >
             {simulation ? "Stop" : "Start"} simulation
+          </Menu.Item>
+          <Menu.Item
+            onClick={() => {
+              if (fullGraph) {
+                setGraphType(false);
+              } else {
+                setGraphType(true);
+              }
+            }}
+            icon={
+              fullGraph ? (
+                <IconToggleLeft style={{ width: rem(14), height: rem(14) }} />
+              ) : (
+                <IconToggleRight style={{ width: rem(14), height: rem(14) }} />
+              )
+            }
+          >
+            Use {fullGraph ? "grouped" : "full"} graph
           </Menu.Item>
 
           <Menu.Divider />
