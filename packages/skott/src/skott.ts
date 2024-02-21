@@ -66,27 +66,24 @@ export interface SkottConfig<T> {
   tsConfigPath: string;
   /**
    * Grouping rules, which will be used to create compacted "grouped" vesrion of the graph
-   * 
+   *
    * Group can be either a string, string pattern or a configuration object
    */
   groups?: {
-    [key: string]: string | {
-      /**
-       * Scope of the group
-       */
-      basePath: string;
-      /**
-       * 
-       * @param modulePath path to the module
-       * @returns group name, to which the module belongs
-       */
-      getGroup: (modulePath: string) => string;
-    } | {
-      /**
-       * If set to true, this group of modules will be hidden in the graph
-       */
-      hide: true;
-    };
+    [key: string]:
+      | string
+      | {
+          /**
+           * Scope of the group
+           */
+          basePath: string;
+          /**
+           *
+           * @param modulePath path to the module
+           * @returns group name, to which the module belongs
+           */
+          getGroup: (modulePath: string) => string;
+        };
   };
 }
 
@@ -140,6 +137,8 @@ export interface WorkspaceConfiguration {
 export class Skott<T> {
   #cacheHandler: SkottCacheHandler<T>;
   #projectGraph = new DiGraph<SkottNode<T>>();
+  #projectCompactGraph: DiGraph<SkottNode<T>> | null = null;
+  #groupResolver: (node: string) => string | null = () => null;
   #visitedNodes = new Set<string>();
   #baseDir = ".";
   #workspaceConfiguration: WorkspaceConfiguration = {
@@ -161,6 +160,11 @@ export class Skott<T> {
       this.config,
       this.logger
     );
+
+    if (config.groups) {
+      this.#projectCompactGraph = new DiGraph<SkottNode<T>>();
+      this.#groupResolver = this.getGroupResolver();
+    }
   }
 
   public getStructureCache(): SkottCache<T> {
@@ -235,17 +239,135 @@ export class Skott<T> {
     return normalizedNodePath;
   }
 
+  /**
+   *
+   * Converts `config.groups` into a single function that will return group name for provided path
+   *
+   * @returns (node: string) => string
+   */
+  private getGroupResolver(): (node: string) => string | null {
+    const groups = this.config.groups;
+
+    if (!groups) {
+      return (node) => node;
+    }
+
+    const groupResolvers = Object.entries(groups).map(([groupName, group]) => {
+      if (typeof group === "string") {
+        /**
+         * Group is a string pattern like `src/core/*`,
+         * where `/*` will tell that all subdirectories of `src/core` are subgroups of `groupName`
+         */
+        if (group.endsWith("/*")) {
+          return (node: string) => {
+            const resolvedNodePath = this.resolveNodePath(node);
+            const resolvedGroupBasePath = this.resolveNodePath(
+              group.slice(0, -2)
+            );
+            if (resolvedNodePath.startsWith(resolvedGroupBasePath)) {
+              const subPathPos = resolvedGroupBasePath.length + 1;
+              const subGroupName = resolvedNodePath.slice(
+                subPathPos,
+                resolvedNodePath.indexOf("/", subPathPos)
+              );
+
+              return `${groupName}/${subGroupName}`;
+            }
+
+            return null;
+          };
+        }
+
+        /**
+         * Group is a simple string pattern like `src/core`
+         */
+        return (node: string) => {
+          const resolvedNodePath = this.resolveNodePath(node);
+          const resolvedGroupBasePath = this.resolveNodePath(group);
+          if (resolvedNodePath.includes(resolvedGroupBasePath)) {
+            return groupName;
+          }
+
+          return null;
+        };
+      }
+
+      /**
+       * Group is a configuration object like `{ basePath: "src/core", getGroup: (node) => "core" }`
+       */
+      return (node: string) => {
+        const resolvedBasePath = this.resolveNodePath(group.basePath);
+        const resolvedNodePath = this.resolveNodePath(node);
+
+        if (resolvedNodePath.includes(resolvedBasePath)) {
+          const subGroupName = group.getGroup(resolvedNodePath);
+
+          return `${groupName}/${subGroupName}`;
+        }
+
+        return null;
+      };
+    });
+
+    /**
+     * Universal group resolver that will try to resolve node using all group resolvers
+     */
+    return (node: string) => {
+      for (const resolver of groupResolvers) {
+        const resolvedNode = resolver(node);
+
+        if (resolvedNode) {
+          return resolvedNode;
+        }
+      }
+
+      return null;
+    };
+  }
+
   private async addNode(node: string): Promise<void> {
+    const size = await this.fileReader.stats(node);
     this.#projectGraph.addVertex({
       id: this.resolveNodePath(node),
       adjacentTo: [],
       // @ts-ignore
       body: {
-        size: await this.fileReader.stats(node),
+        size,
         thirdPartyDependencies: [],
         builtinDependencies: []
       }
     });
+
+    if (this.config.groups) {
+      const groupName = this.#groupResolver(node);
+
+      if (groupName) {
+        if (this.#projectCompactGraph!.hasVertex(groupName)) {
+          /**
+           * Group vertex already exists, we need to add up the size of the new node
+           */
+          this.#projectCompactGraph!.mergeVertexBody(groupName, (body) => {
+            body.size += size;
+          });
+        } else {
+          /**
+           * Group vertex does not exist yet, we need to create it
+           *
+           * Initial size is the size of the first node
+           */
+          this.#projectCompactGraph!.addVertex({
+            id: groupName,
+            adjacentTo: [],
+            // @ts-expect-error
+            body: {
+              size,
+              thirdPartyDependencies: [],
+              builtinDependencies: []
+            }
+          });
+        }
+      }
+    }
   }
 
   private async linkNodes({
@@ -262,6 +384,18 @@ export class Skott<T> {
       from: this.resolveNodePath(from, !useRelativeResolution),
       to: this.resolveNodePath(to)
     });
+
+    if (this.config.groups) {
+      const fromGroup = this.#groupResolver(from);
+      const toGroup = this.#groupResolver(to);
+
+      if (fromGroup && toGroup) {
+        this.#projectCompactGraph!.addEdge({
+          from: fromGroup,
+          to: toGroup
+        });
+      }
+    }
   }
 
   private async findModuleDeclarations(
@@ -518,6 +652,7 @@ export class Skott<T> {
 
     return {
       graph: projectStructure,
+      groupedGraph: this.#projectCompactGraph?.toDict(),
       files: Object.keys(projectStructure)
     };
   }
