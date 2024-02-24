@@ -174,6 +174,428 @@ describe("When running Skott using all real dependencies", () => {
       });
     });
 
+    describe("When using groups", () => {
+      const fsRootDir = `skott-ignore-temp-fs`;
+
+      const runSandbox = createRealFileSystem(fsRootDir, {
+        "skott-ignore-temp-fs/src/core/index.js": `export const N = 42;`,
+        "skott-ignore-temp-fs/src/features/feature-a/index.js": `import { N } from "../../core"; export const A = N;`,
+        "skott-ignore-temp-fs/src/features/feature-b/index.js": `import { N } from "../../core"; import { A } from "../feature-a"; console.log(A); export const B = N;`,
+        "skott-ignore-temp-fs/src/features/feature-c/a.js": `import { N } from "../../core"; import { A } from "../feature-a"; export { N, A };`,
+        "skott-ignore-temp-fs/src/features/feature-c/b.js": `import { B } from "./src/features/feature-b"; export { B };`,
+        "skott-ignore-temp-fs/src/features/feature-c/c.js": `import { N, A } from "./a"; import { B } from "./b"; export { N, A, B };`,
+        "skott-ignore-temp-fs/src/features/feature-c/index.js": `export { N as CN, A as CA, B as CB } from "./c";`,
+        "skott-ignore-temp-fs/index.js": `import { N } from "./src/core"; import { A } from "./src/features/feature-a"; import { B } from "./src/features/feature-b"; import * as C from "./src/features/feature-c"; console.log(N, A, B, C);`
+      });
+
+      test("Simple string pattern group should work", async () => {
+        expect.assertions(1);
+
+        const skott = new Skott(
+          {
+            ...defaultConfig,
+            groups: {
+              core: "src/core",
+              featureA: "src/features/feature-a",
+              featureB: "src/features/feature-b",
+              featureC: "src/features/feature-c"
+            }
+          },
+          new FileSystemReader({ cwd: fsRootDir, ignorePattern: "" }),
+          new InMemoryFileWriter(),
+          new ModuleWalkerSelector(),
+          new FakeLogger()
+        );
+
+        await runSandbox(async () => {
+          const { groupedGraph } = await skott
+            .initialize()
+            .then(({ getStructure }) => getStructure());
+
+          expect(groupedGraph).toEqual({
+            core: {
+              id: "core",
+              adjacentTo: [],
+              body: {
+                size: 20,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: ["skott-ignore-temp-fs/src/core/index.js"]
+              }
+            },
+            featureA: {
+              id: "featureA",
+              adjacentTo: ["core"],
+              body: {
+                size: 51,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: [
+                  "skott-ignore-temp-fs/src/features/feature-a/index.js"
+                ]
+              }
+            },
+            featureB: {
+              id: "featureB",
+              adjacentTo: ["core", "featureA"],
+              body: {
+                size: 101,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: [
+                  "skott-ignore-temp-fs/src/features/feature-b/index.js"
+                ]
+              }
+            },
+            featureC: {
+              id: "featureC",
+              adjacentTo: ["core", "featureA", "featureB"],
+              body: {
+                size: 261,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: [
+                  "skott-ignore-temp-fs/src/features/feature-c/index.js",
+                  "skott-ignore-temp-fs/src/features/feature-c/c.js",
+                  "skott-ignore-temp-fs/src/features/feature-c/a.js",
+                  "skott-ignore-temp-fs/src/features/feature-c/b.js"
+                ]
+              }
+            }
+          });
+        });
+      });
+
+      test("String pattern with subgroups should work", async () => {
+        expect.assertions(1);
+
+        const skott = new Skott(
+          {
+            ...defaultConfig,
+            groups: {
+              core: "src/core",
+              features: "src/features/*"
+            }
+          },
+          new FileSystemReader({ cwd: fsRootDir, ignorePattern: "" }),
+          new InMemoryFileWriter(),
+          new ModuleWalkerSelector(),
+          new FakeLogger()
+        );
+
+        await runSandbox(async () => {
+          const { groupedGraph } = await skott
+            .initialize()
+            .then(({ getStructure }) => getStructure());
+
+          expect(groupedGraph).toEqual({
+            core: {
+              id: "core",
+              adjacentTo: [],
+              body: {
+                size: 20,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: ["skott-ignore-temp-fs/src/core/index.js"]
+              }
+            },
+            "features/feature-a": {
+              id: "features/feature-a",
+              adjacentTo: ["core"],
+              body: {
+                size: 51,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: [
+                  "skott-ignore-temp-fs/src/features/feature-a/index.js"
+                ]
+              }
+            },
+            "features/feature-b": {
+              id: "features/feature-b",
+              adjacentTo: ["core", "features/feature-a"],
+              body: {
+                size: 101,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: [
+                  "skott-ignore-temp-fs/src/features/feature-b/index.js"
+                ]
+              }
+            },
+            "features/feature-c": {
+              id: "features/feature-c",
+              adjacentTo: ["core", "features/feature-a", "features/feature-b"],
+              body: {
+                size: 261,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: [
+                  "skott-ignore-temp-fs/src/features/feature-c/index.js",
+                  "skott-ignore-temp-fs/src/features/feature-c/c.js",
+                  "skott-ignore-temp-fs/src/features/feature-c/a.js",
+                  "skott-ignore-temp-fs/src/features/feature-c/b.js"
+                ]
+              }
+            }
+          });
+        });
+      });
+
+      describe("Configuration based group", () => {
+        test("Configuration based group should work (base case)", async () => {
+          expect.assertions(1);
+
+          const skott = new Skott(
+            {
+              ...defaultConfig,
+              groups: {
+                core: "src/core",
+                features: {
+                  basePath: "src/features",
+                  getGroup: (filePath) => filePath.split("/")[3]
+                }
+              }
+            },
+            new FileSystemReader({ cwd: fsRootDir, ignorePattern: "" }),
+            new InMemoryFileWriter(),
+            new ModuleWalkerSelector(),
+            new FakeLogger()
+          );
+
+          await runSandbox(async () => {
+            const { groupedGraph } = await skott
+              .initialize()
+              .then(({ getStructure }) => getStructure());
+
+            expect(groupedGraph).toEqual({
+              core: {
+                id: "core",
+                adjacentTo: [],
+                body: {
+                  size: 20,
+                  thirdPartyDependencies: [],
+                  builtinDependencies: [],
+                  contains: ["skott-ignore-temp-fs/src/core/index.js"]
+                }
+              },
+              "features/feature-a": {
+                id: "features/feature-a",
+                adjacentTo: ["core"],
+                body: {
+                  size: 51,
+                  thirdPartyDependencies: [],
+                  builtinDependencies: [],
+                  contains: [
+                    "skott-ignore-temp-fs/src/features/feature-a/index.js"
+                  ]
+                }
+              },
+              "features/feature-b": {
+                id: "features/feature-b",
+                adjacentTo: ["core", "features/feature-a"],
+                body: {
+                  size: 101,
+                  thirdPartyDependencies: [],
+                  builtinDependencies: [],
+                  contains: [
+                    "skott-ignore-temp-fs/src/features/feature-b/index.js"
+                  ]
+                }
+              },
+              "features/feature-c": {
+                id: "features/feature-c",
+                adjacentTo: [
+                  "core",
+                  "features/feature-a",
+                  "features/feature-b"
+                ],
+                body: {
+                  size: 261,
+                  thirdPartyDependencies: [],
+                  builtinDependencies: [],
+                  contains: [
+                    "skott-ignore-temp-fs/src/features/feature-c/index.js",
+                    "skott-ignore-temp-fs/src/features/feature-c/c.js",
+                    "skott-ignore-temp-fs/src/features/feature-c/a.js",
+                    "skott-ignore-temp-fs/src/features/feature-c/b.js"
+                  ]
+                }
+              }
+            });
+          });
+        });
+
+        test("If `getGroup` does not return group name, then node should be filtered out", async () => {
+          expect.assertions(1);
+
+          const skott = new Skott(
+            {
+              ...defaultConfig,
+              groups: {
+                core: "src/core",
+                features: {
+                  basePath: "src/features",
+                  getGroup: (filePath) => {
+                    if (filePath.includes("feature-a")) {
+                      return null;
+                    }
+
+                    return filePath.split("/")[3];
+                  }
+                }
+              }
+            },
+            new FileSystemReader({ cwd: fsRootDir, ignorePattern: "" }),
+            new InMemoryFileWriter(),
+            new ModuleWalkerSelector(),
+            new FakeLogger()
+          );
+
+          await runSandbox(async () => {
+            const { groupedGraph } = await skott
+              .initialize()
+              .then(({ getStructure }) => getStructure());
+
+            expect(groupedGraph).toEqual({
+              core: {
+                id: "core",
+                adjacentTo: [],
+                body: {
+                  size: 20,
+                  thirdPartyDependencies: [],
+                  builtinDependencies: [],
+                  contains: ["skott-ignore-temp-fs/src/core/index.js"]
+                }
+              },
+              "features/feature-b": {
+                id: "features/feature-b",
+                adjacentTo: ["core"],
+                body: {
+                  size: 101,
+                  thirdPartyDependencies: [],
+                  builtinDependencies: [],
+                  contains: [
+                    "skott-ignore-temp-fs/src/features/feature-b/index.js"
+                  ]
+                }
+              },
+              "features/feature-c": {
+                id: "features/feature-c",
+                adjacentTo: ["core", "features/feature-b"],
+                body: {
+                  size: 261,
+                  thirdPartyDependencies: [],
+                  builtinDependencies: [],
+                  contains: [
+                    "skott-ignore-temp-fs/src/features/feature-c/index.js",
+                    "skott-ignore-temp-fs/src/features/feature-c/c.js",
+                    "skott-ignore-temp-fs/src/features/feature-c/a.js",
+                    "skott-ignore-temp-fs/src/features/feature-c/b.js"
+                  ]
+                }
+              }
+            });
+          });
+        });
+      });
+
+      test("Combination of different group configurations should work", async () => {
+        expect.assertions(1);
+
+        const skott = new Skott(
+          {
+            ...defaultConfig,
+            groups: {
+              core: "src/core",
+              featureA: "src/features/feature-a",
+              features: {
+                basePath: "src/features",
+                getGroup: (filePath) => {
+                  if (filePath.includes("feature-b")) {
+                    return null;
+                  }
+
+                  return filePath.split("/")[3];
+                }
+              },
+              /**
+               * If node is not matched by previous group,
+               * it should be tried against next one
+               */
+              featuresBySubGroupPattern: "src/features/*"
+            }
+          },
+          new FileSystemReader({ cwd: fsRootDir, ignorePattern: "" }),
+          new InMemoryFileWriter(),
+          new ModuleWalkerSelector(),
+          new FakeLogger()
+        );
+
+        await runSandbox(async () => {
+          const { groupedGraph } = await skott
+            .initialize()
+            .then(({ getStructure }) => getStructure());
+
+          expect(groupedGraph).toEqual({
+            core: {
+              id: "core",
+              adjacentTo: [],
+              body: {
+                size: 20,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: ["skott-ignore-temp-fs/src/core/index.js"]
+              }
+            },
+            featureA: {
+              id: "featureA",
+              adjacentTo: ["core"],
+              body: {
+                size: 51,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: [
+                  "skott-ignore-temp-fs/src/features/feature-a/index.js"
+                ]
+              }
+            },
+            "featuresBySubGroupPattern/feature-b": {
+              id: "featuresBySubGroupPattern/feature-b",
+              adjacentTo: ["core", "featureA"],
+              body: {
+                size: 101,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: [
+                  "skott-ignore-temp-fs/src/features/feature-b/index.js"
+                ]
+              }
+            },
+            "features/feature-c": {
+              id: "features/feature-c",
+              adjacentTo: [
+                "core",
+                "featureA",
+                "featuresBySubGroupPattern/feature-b"
+              ],
+              body: {
+                size: 261,
+                thirdPartyDependencies: [],
+                builtinDependencies: [],
+                contains: [
+                  "skott-ignore-temp-fs/src/features/feature-c/index.js",
+                  "skott-ignore-temp-fs/src/features/feature-c/c.js",
+                  "skott-ignore-temp-fs/src/features/feature-c/a.js",
+                  "skott-ignore-temp-fs/src/features/feature-c/b.js"
+                ]
+              }
+            }
+          });
+        });
+      });
+    });
+
     describe("When using ignore pattern", () => {
       describe("When running bulk analysis", () => {
         test("Should discard files with pattern relative to an absolute directory path", async () => {
