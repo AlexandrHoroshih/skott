@@ -80,9 +80,9 @@ export interface SkottConfig<T> {
           /**
            *
            * @param modulePath path to the module
-           * @returns group name, to which the module belongs
+           * @returns group name, to which the module belongs or null if it does not belong to the group
            */
-          getGroup: (modulePath: string) => string;
+          getGroup: (modulePath: string) => string | null;
         };
   };
 }
@@ -137,7 +137,8 @@ export interface WorkspaceConfiguration {
 export class Skott<T> {
   #cacheHandler: SkottCacheHandler<T>;
   #projectGraph = new DiGraph<SkottNode<T>>();
-  #projectCompactGraph: DiGraph<SkottNode<T>> | null = null;
+  #projectCompactGraph: DiGraph<SkottNode<T & { contains: string[] }>> | null =
+    null;
   #groupResolver: (node: string) => string | null = () => null;
   #visitedNodes = new Set<string>();
   #baseDir = ".";
@@ -162,7 +163,9 @@ export class Skott<T> {
     );
 
     if (config.groups) {
-      this.#projectCompactGraph = new DiGraph<SkottNode<T>>();
+      this.#projectCompactGraph = new DiGraph<
+        SkottNode<T & { contains: string[] }>
+      >();
       this.#groupResolver = this.getGroupResolver();
     }
   }
@@ -261,11 +264,13 @@ export class Skott<T> {
         if (group.endsWith("/*")) {
           return (node: string) => {
             const resolvedNodePath = this.resolveNodePath(node);
-            const resolvedGroupBasePath = this.resolveNodePath(
-              group.slice(0, -2)
-            );
-            if (resolvedNodePath.startsWith(resolvedGroupBasePath)) {
-              const subPathPos = resolvedGroupBasePath.length + 1;
+            const resolvedGroupBasePath = group.slice(0, -2);
+
+            if (resolvedNodePath.includes(resolvedGroupBasePath)) {
+              const subPathPos =
+                resolvedNodePath.indexOf(resolvedGroupBasePath) +
+                resolvedGroupBasePath.length +
+                1;
               const subGroupName = resolvedNodePath.slice(
                 subPathPos,
                 resolvedNodePath.indexOf("/", subPathPos)
@@ -301,6 +306,13 @@ export class Skott<T> {
 
         if (resolvedNodePath.includes(resolvedBasePath)) {
           const subGroupName = group.getGroup(resolvedNodePath);
+
+          if (!subGroupName) {
+            /**
+             * If `getGroup` returns null, it means that the node does not belong to the group
+             */
+            return null;
+          }
 
           return `${groupName}/${subGroupName}`;
         }
@@ -347,7 +359,10 @@ export class Skott<T> {
            * Group vertex already exists, we need to add up the size of the new node
            */
           this.#projectCompactGraph!.mergeVertexBody(groupName, (body) => {
-            body.size += size;
+            if (!body.contains.includes(node)) {
+              body.size += size;
+              body.contains.push(node);
+            }
           });
         } else {
           /**
@@ -362,7 +377,8 @@ export class Skott<T> {
             body: {
               size,
               thirdPartyDependencies: [],
-              builtinDependencies: []
+              builtinDependencies: [],
+              contains: [node]
             }
           });
         }
