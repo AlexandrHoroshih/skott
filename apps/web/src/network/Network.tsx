@@ -30,7 +30,10 @@ import {
 } from "./dependencies";
 import { ProgressLoader } from "@/network/ProgressLoader";
 import { AppEffects, callUseCase, notify } from "@/store/store";
-import { updateConfiguration } from "@/core/network/update-configuration";
+import {
+  updateConfiguration,
+  toggleGraph,
+} from "@/core/network/update-configuration";
 import { storeDefaultValue } from "@/store/state";
 
 export default function GraphNetwork() {
@@ -46,6 +49,17 @@ export default function GraphNetwork() {
   const [graphConfig, setGraphConfig] = React.useState<NetworkLayout>(
     appStore.getState().ui.network.layout
   );
+  const [graphMode, setGraphMode] = React.useState<"full" | "grouped">(
+    appStore.getState().ui.network.graph
+  );
+
+  React.useEffect(() => {
+    const subscription = appStore.store$
+      .pipe(map(({ ui }) => ui.network.graph))
+      .subscribe(setGraphMode);
+
+    return subscription.unsubscribe;
+  });
 
   function focusOnNetworkNode(nodeId: string) {
     network?.selectNodes([nodeId], true);
@@ -301,6 +315,8 @@ export default function GraphNetwork() {
       <ActionMenu
         network={network}
         initNetwork={() => initNetwork(graphConfig)}
+        graphMode={graphMode}
+        onGraphModeChange={(graph) => toggleGraph(appStore)({ graph })}
       />
       <ProgressLoader />
       <div
