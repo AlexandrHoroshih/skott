@@ -17,6 +17,7 @@ export interface UiState {
     glob: string;
   };
   network: {
+    graph: "full" | "grouped";
     dependencies: {
       circular: {
         active: boolean;
@@ -51,6 +52,7 @@ export const storeDefaultValue = {
       glob: "",
     },
     network: {
+      graph: "full",
       dependencies: {
         circular: {
           active: false,

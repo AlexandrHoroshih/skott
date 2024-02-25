@@ -15,12 +15,15 @@ import { Network } from "vis-network";
 export function ActionMenu({
   network,
   initNetwork,
+  graphMode,
+  onGraphModeChange,
 }: {
   network: Network | undefined;
+  graphMode: "full" | "grouped";
+  onGraphModeChange: (mode: "full" | "grouped") => void;
   initNetwork: () => void;
 }) {
   const [simulation, setSimulation] = React.useState(false);
-  const [fullGraph, setGraphType] = React.useState(true);
 
   return (
     <div
@@ -70,21 +73,21 @@ export function ActionMenu({
           </Menu.Item>
           <Menu.Item
             onClick={() => {
-              if (fullGraph) {
-                setGraphType(false);
+              if (graphMode === "full") {
+                onGraphModeChange("grouped");
               } else {
-                setGraphType(true);
+                onGraphModeChange("full");
               }
             }}
             icon={
-              fullGraph ? (
+              graphMode === "full" ? (
                 <IconToggleLeft style={{ width: rem(14), height: rem(14) }} />
               ) : (
                 <IconToggleRight style={{ width: rem(14), height: rem(14) }} />
               )
             }
           >
-            Use {fullGraph ? "grouped" : "full"} graph
+            Use {graphMode === "full" ? "grouped" : "full"} graph
           </Menu.Item>
 
           <Menu.Divider />

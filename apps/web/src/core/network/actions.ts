@@ -7,4 +7,5 @@ export type NetworkActions =
   | {
       action: "update_configuration";
       payload: NetworkLayout;
-    };
+    }
+  | { action: "toggle_graph"; payload: "full" | "grouped" };

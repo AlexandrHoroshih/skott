@@ -9,3 +9,15 @@ export function updateConfiguration(appStore: AppStore) {
     });
   };
 }
+
+export function toggleGraph(appStore: AppStore) {
+  return function (params: { graph: "full" | "grouped" }) {
+    appStore.dispatch(
+      {
+        action: "toggle_graph",
+        payload: params.graph,
+      },
+      { notify: true }
+    );
+  };
+}

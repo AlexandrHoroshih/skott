@@ -27,6 +27,19 @@ function toggleDependencies(): AppReducer {
       });
     }
 
+    if (event.action === "toggle_graph") {
+      return Option.some({
+        data: state.data,
+        ui: {
+          ...state.ui,
+          network: {
+            ...state.ui.network,
+            graph: event.payload,
+          },
+        },
+      });
+    }
+
     if (event.action === "update_configuration") {
       return Option.some({
         data: state.data,

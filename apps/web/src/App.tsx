@@ -25,6 +25,15 @@ function initializeStore(client: SkottHttpClient, dataStoreRef: AppStore) {
         data: nextDataValue,
       };
 
+      if (nextDataValue.groupedGraph) {
+        /**
+         * Enforce the grouped graph view if the grouped graph is available
+         *
+         * "Full" graph might be way too heavy to render fast, so we default to the grouped graph which should be smaller.
+         */
+        appStateValue.ui.network.graph = "grouped";
+      }
+
       dataStoreRef.setInitialState(appStateValue);
     })
     .catch((exception) => {

@@ -236,12 +236,17 @@ export default function GraphNetwork() {
     if (networkContainerRef.current) {
       subscription = appStore.store$
         .pipe(
-          map(({ data }) => data),
-          distinctUntilChanged(isEqual)
+          distinctUntilChanged(({ data: prevData }, { data: currentData }) =>
+            isEqual(prevData, currentData)
+          )
         )
-        .subscribe((data) => {
+        .subscribe(({ data, ui }) => {
           const { graphNodes, graphEdges } = makeNodesAndEdges(
-            Object.values(data.graph),
+            Object.values(
+              ui.network.graph === "grouped" && data.groupedGraph
+                ? data.groupedGraph
+                : data.graph
+            ),
             { entrypoint: data.entrypoint }
           );
 
