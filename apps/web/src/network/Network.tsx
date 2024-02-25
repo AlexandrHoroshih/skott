@@ -315,6 +315,7 @@ export default function GraphNetwork() {
       <ActionMenu
         network={network}
         initNetwork={() => initNetwork(graphConfig)}
+        groupedGraphAvailable={!!appStore.getState().data.groupedGraph}
         graphMode={graphMode}
         onGraphModeChange={(graph) => toggleGraph(appStore)({ graph })}
       />

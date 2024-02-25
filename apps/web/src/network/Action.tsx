@@ -16,9 +16,11 @@ export function ActionMenu({
   network,
   initNetwork,
   graphMode,
+  groupedGraphAvailable,
   onGraphModeChange,
 }: {
   network: Network | undefined;
+  groupedGraphAvailable: boolean;
   graphMode: "full" | "grouped";
   onGraphModeChange: (mode: "full" | "grouped") => void;
   initNetwork: () => void;
@@ -71,24 +73,28 @@ export function ActionMenu({
           >
             {simulation ? "Stop" : "Start"} simulation
           </Menu.Item>
-          <Menu.Item
-            onClick={() => {
-              if (graphMode === "full") {
-                onGraphModeChange("grouped");
-              } else {
-                onGraphModeChange("full");
+          {groupedGraphAvailable && (
+            <Menu.Item
+              onClick={() => {
+                if (graphMode === "full") {
+                  onGraphModeChange("grouped");
+                } else {
+                  onGraphModeChange("full");
+                }
+              }}
+              icon={
+                graphMode === "full" ? (
+                  <IconToggleLeft style={{ width: rem(14), height: rem(14) }} />
+                ) : (
+                  <IconToggleRight
+                    style={{ width: rem(14), height: rem(14) }}
+                  />
+                )
               }
-            }}
-            icon={
-              graphMode === "full" ? (
-                <IconToggleLeft style={{ width: rem(14), height: rem(14) }} />
-              ) : (
-                <IconToggleRight style={{ width: rem(14), height: rem(14) }} />
-              )
-            }
-          >
-            Use {graphMode === "full" ? "grouped" : "full"} graph
-          </Menu.Item>
+            >
+              Use {graphMode === "full" ? "grouped" : "full"} graph
+            </Menu.Item>
+          )}
 
           <Menu.Divider />
 
