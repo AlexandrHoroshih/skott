@@ -27,6 +27,12 @@ const config = D.struct({
       typeOnly: D.boolean
     })
   ),
+  groups: withDefaultValue(defaultConfig.groups)({
+    /**
+     * Temporary placeholder, will be replaced by a proper decoder
+     */
+    decode: (v) => v as any
+  }),
   fileExtensions: withDefaultValue(defaultConfig.fileExtensions)(
     D.array(D.literal(".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"))
   ),

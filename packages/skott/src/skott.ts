@@ -125,7 +125,8 @@ export const defaultConfig = {
   includeBaseDir: false,
   incremental: false,
   manifestPath: "package.json",
-  tsConfigPath: "tsconfig.json"
+  tsConfigPath: "tsconfig.json",
+  groups: undefined
 };
 
 export interface WorkspaceConfiguration {
